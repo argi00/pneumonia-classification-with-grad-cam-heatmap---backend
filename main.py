@@ -17,7 +17,7 @@ app = FastAPI(
 # Allow Next.js frontend to communicate with the API
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Update for production
+    allow_origins=["*"],  # Update for production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
