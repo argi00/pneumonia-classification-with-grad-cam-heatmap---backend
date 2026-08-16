@@ -10,4 +10,5 @@ opencv-python-headless==4.11.0.86
 grad-cam==1.5.5
 matplotlib==3.8.2
 seaborn==0.13.2
+wandb==0.28.1
 python-multipart
