@@ -1,10 +1,10 @@
 from pathlib import Path
 from dataclasses import dataclass
-from dotenv import load_dotenv
+#from dotenv import load_dotenv
 from typing import Optional, Sequence
 import torch
 # Load environment variables from .env file if it exists
-load_dotenv()
+#load_dotenv()
 
 @dataclass
 class Args():
@@ -60,5 +60,5 @@ class Args():
     lr = 0.001
 
     checkpoint_path: str = (
-   "/teamspace/studios/this_studio/Xray Pneumonia classifier/reports/best/densenet121 - best_model.ckpt"
+   "./best.ckpt"
 )
