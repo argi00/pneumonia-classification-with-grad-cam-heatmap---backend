@@ -1,5 +1,4 @@
-import matplotlib
-matplotlib.use('Agg')  # Backend non-interactif, avant tout autre import
+
 
 import base64
 import io
