@@ -1,12 +1,9 @@
+import torch
 import torch.nn as nn
+import torchmetrics
 import lightning as pl
 from torchvision import models
-import torch
-import torchmetrics
-from sklearn.metrics import confusion_matrix
-import matplotlib.pyplot as plt
-import seaborn as sns
-import wandb
+
 
 class Classifier(nn.Module):
     def __init__(self, args):
@@ -21,10 +18,9 @@ class Classifier(nn.Module):
 
 class ModelPumonie(pl.LightningModule):
     def __init__(self, args):
-        super().__init__()  
+        super().__init__()
         self.args = args
 
-        # Initialisation des métriques
         self.train_accuracy = torchmetrics.Accuracy(task="binary", threshold=0.5)
         self.val_accuracy = torchmetrics.Accuracy(task="binary", threshold=0.5)
         self.test_accuracy = torchmetrics.Accuracy(task="binary", threshold=0.5)
@@ -41,12 +37,12 @@ class ModelPumonie(pl.LightningModule):
         self.val_auc_pr = torchmetrics.AveragePrecision(task="binary")
         self.test_auc_pr = torchmetrics.AveragePrecision(task="binary")
 
-        self.loss_fn = nn.BCEWithLogitsLoss(pos_weight=torch.tensor(args.pos_weight, dtype=torch.float32))
+        self.loss_fn = nn.BCEWithLogitsLoss(
+            pos_weight=torch.tensor(args.pos_weight, dtype=torch.float32)
+        )
 
-        # Initialisation du modèle de classification
         self.model = Classifier(args=args)
 
-        # Initialisation des listes pour les prédictions et les étiquettes
         self.val_preds, self.val_labels = [], []
         self.test_preds, self.test_labels = [], []
 
@@ -54,64 +50,32 @@ class ModelPumonie(pl.LightningModule):
         return self.model(image)
 
     def shared_step(self, batch, stage):
-
         images, labels = batch
-
-        # Labels pour BCEWithLogitsLoss
         labels = labels.float().unsqueeze(1)
-
         outputs = self(images)
-
         loss = self.loss_fn(outputs, labels)
-
-        # Probabilités
         probs = torch.sigmoid(outputs)
-
-        # Classes 0/1
         preds = (probs >= 0.5).int()
-
-        # Labels pour TorchMetrics
         metric_labels = labels.int()
 
         if stage == "train":
-
             self.train_accuracy(preds, metric_labels)
-
         elif stage == "val":
-
             self.val_accuracy(preds, metric_labels)
             self.val_precision(preds, metric_labels)
             self.val_recall(preds, metric_labels)
             self.val_f1(preds, metric_labels)
-
-            # IMPORTANT : AveragePrecision reçoit les probabilités
-            # et des labels int/long
             self.val_auc_pr(probs, metric_labels)
-
-            self.val_preds.extend(
-                preds.cpu().numpy()
-            )
-
-            self.val_labels.extend(
-                metric_labels.cpu().numpy()
-            )
-
+            self.val_preds.extend(preds.cpu().numpy())
+            self.val_labels.extend(metric_labels.cpu().numpy())
         elif stage == "test":
-
             self.test_accuracy(preds, metric_labels)
             self.test_precision(preds, metric_labels)
             self.test_recall(preds, metric_labels)
             self.test_f1(preds, metric_labels)
-
             self.test_auc_pr(probs, metric_labels)
-
-            self.test_preds.extend(
-                preds.cpu().numpy()
-            )
-
-            self.test_labels.extend(
-                metric_labels.cpu().numpy()
-            )
+            self.test_preds.extend(preds.cpu().numpy())
+            self.test_labels.extend(metric_labels.cpu().numpy())
 
         return loss
 
@@ -142,27 +106,23 @@ class ModelPumonie(pl.LightningModule):
         return loss
 
     def on_validation_epoch_end(self):
-        cm = confusion_matrix(self.val_labels, self.val_preds)
-        self.log_confusion_matrix(cm, stage="Validation")
+        # Imports lourds seulement si vraiment utilisés (pas en inférence)
+        try:
+            from sklearn.metrics import confusion_matrix
+            cm = confusion_matrix(self.val_labels, self.val_preds)
+        except Exception:
+            pass
         self.val_preds.clear()
         self.val_labels.clear()
 
     def on_test_epoch_end(self):
-        cm = confusion_matrix(self.test_labels, self.test_preds)
-        self.log_confusion_matrix(cm, stage="Test")
+        try:
+            from sklearn.metrics import confusion_matrix
+            cm = confusion_matrix(self.test_labels, self.test_preds)
+        except Exception:
+            pass
         self.test_preds.clear()
         self.test_labels.clear()
-
-    def log_confusion_matrix(self, cm, stage):
-        plt.figure(figsize=(6, 6))
-        sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", cbar=False)
-        plt.xlabel("Predicted Labels")
-        plt.ylabel("True Labels")
-        plt.title(f"{stage} Confusion Matrix")
-        
-        # Log dans WandB
-        wandb.log({f"{stage} Confusion Matrix": plt})
-        plt.close()
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.args.lr)
